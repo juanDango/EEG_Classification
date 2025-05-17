@@ -1,8 +1,10 @@
+# app.py
 import streamlit as st
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 from logic import procesar_archivo, run_model
 from utils.patologias import patologias
-import matplotlib.pyplot as plt
 
 # Título principal
 st.set_page_config(page_title="Clasificador de EEG", layout="wide")
@@ -19,10 +21,12 @@ if menu == "Proyecto":
     st.markdown(
         "Este proyecto tiene como objetivo desarrollar un clasificador de patrones de EEG para seis categorías: Seizure, LPD, GPD, LRDA, GRDA y Otros."
     )
-    st.markdown("""
-        "- **Procesamiento de señales:** Extracción de características del EEG mediante transformadas y filtros.  
-- **Modelo:** Ensamble de redes neuronales convolucionales con capa BiLSTM y salida Softmax.  
-- **Interfaz:** Aplicación web con Streamlit para cargar archivos y mostrar resultados."""
+    st.markdown(
+        """
+        - **Procesamiento de señales:** Extracción de características del EEG mediante transformadas y filtros.  
+        - **Modelo:** Ensamble de redes neuronales convolucionales con capa BiLSTM y salida Softmax.  
+        - **Interfaz:** Aplicación web con Streamlit para cargar archivos y mostrar resultados.
+        """
     )
 
 elif menu == "Clasificar EEG":
@@ -32,36 +36,73 @@ elif menu == "Clasificar EEG":
     if archivo is not None:
         st.success("Archivo recibido")
 
-        # Dentro de tu sección de Streamlit tras procesar archivo:
-        df = procesar_archivo(archivo)  # DataFrame con columnas 'Time' y 'EEG'
+        # Indicador de carga con spinner y barra de progreso
+        with st.spinner("Procesando archivo y clasificando EEG..."):
+            progress = st.progress(0)
 
-        # 1. Aplicar estilo oscuro global
-        plt.style.use('dark_background')
+            # 1. Simular señal EEG y extraer espectrograma
+            df, spec_df = procesar_archivo(archivo)
+            progress.progress(20)
 
-        # 2. Crear figura y ejes
-        fig, ax = plt.subplots(figsize=(10, 4), facecolor='black')
+            # 2. Mostrar espectrograma
+            fig_spec, ax_spec = plt.subplots(figsize=(10, 3))
+            times = spec_df["Time"].values
+            spec_data = spec_df.drop("Time", axis=1).T.values
+            freq_labels = spec_df.drop("Time", axis=1).columns
+            ax_spec.imshow(
+                spec_data,
+                aspect="auto",
+                origin="lower",
+                extent=[times[0], times[-1], 0, len(freq_labels)]
+            )
+            ax_spec.set_yticks(np.arange(len(freq_labels)) + 0.5)
+            ax_spec.set_yticklabels(freq_labels, fontsize=6)
+            ax_spec.set_xlabel("Tiempo (s)")
+            ax_spec.set_ylabel("Frecuencia (Hz)")
+            ax_spec.set_title("Espectrograma sintético")
+            st.pyplot(fig_spec)
+            progress.progress(40)
 
-        # 3. Graficar señal sintética o real
-        ax.plot(df["Time"], df["EEG"], color='lime', linewidth=1)
+            # 3. Visualización estilo clínico
+            plt.style.use('dark_background')
+            fig, ax = plt.subplots(figsize=(10, 4), facecolor='black')
+            channels = df.columns.drop("Time")
+            ptp_vals = df[channels].apply(lambda x: x.max() - x.min())
+            offset = ptp_vals.max() * 1.2
+            for i, col in enumerate(channels):
+                ax.plot(
+                    df["Time"],
+                    df[col] + i * offset,
+                    color='lime', linewidth=0.8
+                )
+                ax.text(
+                    -0.01 * df["Time"].max(),
+                    i * offset,
+                    col,
+                    va='center', ha='right',
+                    color='white', fontsize=8
+                )
+            ax.set_xlim(df["Time"].min(), df["Time"].max())
+            ax.axis('off')
+            st.pyplot(fig)
+            progress.progress(60)
 
-        # 4. Ajustar márgenes y ocultar ejes
-        ax.margins(x=0, y=0.05)
-        ax.set_axis_off()
+            # 4. Clasificación con el modelo
+            resultado = run_model(df)
+            progress.progress(100)
+            del progress
 
-        # 5. Mostrar en Streamlit
-        st.pyplot(fig)
-        resultado = run_model(df)
+        st.success("Procesamiento completado!")
 
         etiquetas = ["Seizure", "LPD", "GPD", "LRDA", "GRDA", "Otros"]
-        df = pd.DataFrame({"Votos": resultado}, index=etiquetas)
+        df_votes = pd.DataFrame({"Votos": resultado}, index=etiquetas)
 
         # Gráfico de barras
         st.subheader("Resultados de la clasificación")
-        st.bar_chart(df)
+        st.bar_chart(df_votes)
 
         # Top 3
-        top3 = df.sort_values("Votos", ascending=False).head(3)
-        # Etiqueta más probable grande
+        top3 = df_votes.sort_values("Votos", ascending=False).head(3)
         mejor = top3.index[0]
         pat_mejor = patologias.get(mejor)
         if pat_mejor:
@@ -98,8 +139,10 @@ elif menu == "Clasificar EEG":
 
 elif menu == "Grupo":
     st.header("👥 Información del grupo")
-    st.markdown("""
-            **Integrantes:** Juan Daniel Castrellón 
-            **Rol:** Desarrollo de back-end, diseño de modelos ML, interfaz de usuario."""
-        )
+    st.markdown(
+        """
+                **Integrantes:** Juan Daniel Castrellón  
+                **Rol:** Desarrollo de back-end, diseño de modelos ML, interfaz de usuario.
+        """
+    )
     st.markdown("Este proyecto es parte de un trabajo académico en la Universidad de los Andes, Bogotá, Colombia")
