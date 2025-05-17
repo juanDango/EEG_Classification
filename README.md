@@ -86,7 +86,6 @@ Una aplicación web interactiva construida con Streamlit para clasificar señale
 ## 👥 Equipo
 
 * **Juan Daniel Castrellón** – backend, lógica de simulación y despliegue.
-* **Catalina Cuervo** – diseño ML, visualización y documentación.
 
 ---
 
