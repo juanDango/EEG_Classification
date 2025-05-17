@@ -1,0 +1,8 @@
+# .streamlit/config.toml
+[theme]
+base="dark"                             # hereda el dark theme
+primaryColor="#1E1E1E"                  # color de botones, sliders, highlights
+backgroundColor="#0B0B0B"               # fondo principal
+secondaryBackgroundColor="#262730"      # fondo de sidebar y contenedores
+textColor="#F0F0F0"                     # color de texto
+font="sans serif" 
