@@ -3,9 +3,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from logic import procesar_archivo, run_model
+from logic import procesar_archivo, run_model, predict_eeg_from_parquet_file,load_eeg_classification_model
 from utils.patologias import patologias
-
+import io 
+from tensorflow.keras.utils import plot_model
 # Título principal
 st.set_page_config(page_title="Clasificador de EEG", layout="wide")
 st.title("Clasificador de EEG")
@@ -13,7 +14,7 @@ st.title("Clasificador de EEG")
 # Sidebar con navegación
 menu = st.sidebar.radio(
     "Navegación",
-    ("Proyecto", "Clasificar EEG", "Grupo")
+    ("Proyecto", "Clasificar EEG", "Grupo", 'Clasificar eegs 2')
 )
 
 if menu == "Proyecto":
@@ -146,3 +147,73 @@ elif menu == "Grupo":
         """
     )
     st.markdown("Este proyecto es parte de un trabajo académico en la Universidad de los Andes, Bogotá, Colombia")
+elif menu == "Clasificar eegs 2":
+    #st.markdown("#### Resumen del Modelo")
+    #model = load_eeg_classification_model()
+    #summary_string = io.StringIO()
+    #model.summary(print_fn=lambda x: summary_string.write(x + '\n'))
+    #st.text(summary_string.getvalue())
+
+    # 2. Mostrar Gráfico de la Arquitectura del Modelo (Keras)
+    #st.markdown("#### Gráfico de la Arquitectura")
+    #try:
+        # Guardar la imagen temporalmente y mostrarla
+        #plot_path = "model_plot.png"
+        #plot_model(model, to_file=plot_path, show_shapes=True, show_layer_names=True, rankdir='TB') # TB: Top to Bottom, LR: Left to Right
+        #st.image(plot_path)
+    #except Exception as e:
+        #st.warning(f"No se pudo generar la gráfica del modelo. Asegúrate de tener Graphviz y Pydot instalados y configurados en tu sistema.")
+        #st.warning(f"Error: {e}")
+    st.subheader("Sube un archivo de EEG para clasificarlo")
+    archivo_parquet = st.file_uploader("Selecciona un archivo Parquet", type=["parquet"])
+
+    if archivo_parquet is not None:
+        st.success("Archivo recibido")
+        st.subheader("Resultados de Clasificación")
+        with st.spinner("Procesando archivo y clasificando EEG..."):
+
+            archivo_parquet.seek(0) 
+            results = predict_eeg_from_parquet_file(archivo_parquet)
+            df_results = pd.DataFrame(
+                [results[0]],
+                columns=results[1]
+            )
+            st.table(df_results)
+        # --- Display EEG Image ---
+        st.subheader("Visualización de la Señal EEG")
+        try:
+
+            archivo_parquet.seek(0) 
+            eeg_df = pd.read_parquet(archivo_parquet)
+
+            eeg_channel_columns = eeg_df.select_dtypes(include=np.number).columns.tolist()
+            
+            if not eeg_channel_columns:
+                st.warning("No se encontraron columnas numéricas para graficar como canales EEG.")
+            elif len(eeg_df) == 0:
+                st.warning("El archivo Parquet está vacío o no contiene datos para graficar.")
+            else:
+                # 3. Plot the signals
+                fig, axes = plt.subplots(len(eeg_channel_columns), 1, figsize=(12, 2 * len(eeg_channel_columns)), sharex=True)
+                if len(eeg_channel_columns) == 1: 
+                    axes = [axes] 
+
+                for i, channel in enumerate(eeg_channel_columns):
+                    axes[i].plot(eeg_df.index, eeg_df[channel]) 
+                    axes[i].set_ylabel(channel)
+                    axes[i].grid(True)
+                
+                axes[-1].set_xlabel("Muestras (o Tiempo)")
+                fig.suptitle("Señales EEG", fontsize=16)
+                plt.tight_layout(rect=[0, 0, 1, 0.96]) 
+
+                st.pyplot(fig)
+
+        except Exception as e:
+            st.error(f"Error al procesar o graficar el archivo EEG: {e}")
+        
+        
+
+
+
+

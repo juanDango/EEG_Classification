@@ -6,7 +6,7 @@ Una aplicación web interactiva construida con Streamlit para clasificar señale
 
 ## ⚙️ Requisitos previos
 
-* Python 3.8 o superior
+* Python 3.11 o superior
 * Docker
 
 ---
