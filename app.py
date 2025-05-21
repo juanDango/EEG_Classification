@@ -14,7 +14,7 @@ st.title("Clasificador de EEG")
 # Sidebar con navegación
 menu = st.sidebar.radio(
     "Navegación",
-    ("Proyecto", "Clasificar EEG", "Grupo", 'Clasificar eegs 2')
+    ("Proyecto", "Clasificar EEG", "Grupo")
 )
 
 if menu == "Proyecto":
@@ -30,114 +30,6 @@ if menu == "Proyecto":
         """
     )
 
-elif menu == "Clasificar EEG":
-    st.subheader("Sube un archivo de EEG para clasificarlo")
-    archivo = st.file_uploader("Selecciona un archivo", type=None)
-
-    if archivo is not None:
-        st.success("Archivo recibido")
-
-        # Indicador de carga con spinner y barra de progreso
-        with st.spinner("Procesando archivo y clasificando EEG..."):
-            progress = st.progress(0)
-
-            # 1. Simular señal EEG y extraer espectrograma
-            df, spec_df = procesar_archivo(archivo)
-            progress.progress(20)
-
-            # 2. Mostrar espectrograma
-            fig_spec, ax_spec = plt.subplots(figsize=(10, 3))
-            times = spec_df["Time"].values
-            spec_data = spec_df.drop("Time", axis=1).T.values
-            freq_labels = spec_df.drop("Time", axis=1).columns
-            ax_spec.imshow(
-                spec_data,
-                aspect="auto",
-                origin="lower",
-                extent=[times[0], times[-1], 0, len(freq_labels)]
-            )
-            ax_spec.set_yticks(np.arange(len(freq_labels)) + 0.5)
-            ax_spec.set_yticklabels(freq_labels, fontsize=6)
-            ax_spec.set_xlabel("Tiempo (s)")
-            ax_spec.set_ylabel("Frecuencia (Hz)")
-            ax_spec.set_title("Espectrograma sintético")
-            st.pyplot(fig_spec)
-            progress.progress(40)
-
-            # 3. Visualización estilo clínico
-            plt.style.use('dark_background')
-            fig, ax = plt.subplots(figsize=(10, 4), facecolor='black')
-            channels = df.columns.drop("Time")
-            ptp_vals = df[channels].apply(lambda x: x.max() - x.min())
-            offset = ptp_vals.max() * 1.2
-            for i, col in enumerate(channels):
-                ax.plot(
-                    df["Time"],
-                    df[col] + i * offset,
-                    color='lime', linewidth=0.8
-                )
-                ax.text(
-                    -0.01 * df["Time"].max(),
-                    i * offset,
-                    col,
-                    va='center', ha='right',
-                    color='white', fontsize=8
-                )
-            ax.set_xlim(df["Time"].min(), df["Time"].max())
-            ax.axis('off')
-            st.pyplot(fig)
-            progress.progress(60)
-
-            # 4. Clasificación con el modelo
-            resultado = run_model(df)
-            progress.progress(100)
-            del progress
-
-        st.success("Procesamiento completado!")
-
-        etiquetas = ["Seizure", "LPD", "GPD", "LRDA", "GRDA", "Otros"]
-        df_votes = pd.DataFrame({"Votos": resultado}, index=etiquetas)
-
-        # Gráfico de barras
-        st.subheader("Resultados de la clasificación")
-        st.bar_chart(df_votes)
-
-        # Top 3
-        top3 = df_votes.sort_values("Votos", ascending=False).head(3)
-        mejor = top3.index[0]
-        pat_mejor = patologias.get(mejor)
-        if pat_mejor:
-            st.markdown(f"# 1. {pat_mejor['nombre_completo']}")
-            st.write(f"**ID:** {pat_mejor['id']}")
-            st.write(f"**Probabilidad:** {top3.loc[mejor, 'Votos']:.2f}")
-            st.markdown("**Descripción:**")
-            st.markdown(pat_mejor["descripción"], unsafe_allow_html=True)
-            st.markdown("**Posibles tratamientos:**")
-            st.markdown(pat_mejor["posibles_tratamientos"], unsafe_allow_html=True)
-            if pat_mejor.get("citas"):
-                st.markdown("**Citas / Referencias:**")
-                for cita in pat_mejor["citas"]:
-                    st.markdown(f"- [{cita}]({cita})")
-            st.markdown("---")
-
-        # Acordeones para 2 y 3
-        for idx in top3.index[1:]:
-            pat = patologias.get(idx)
-            if pat:
-                with st.expander(f"{pat['nombre_completo']} ({idx})"):
-                    st.write(f"**ID:** {pat['id']}")
-                    st.write(f"**Probabilidad:** {top3.loc[idx, 'Votos']:.2f}")
-                    st.markdown("**Descripción:**")
-                    st.markdown(pat["descripción"], unsafe_allow_html=True)
-                    st.markdown("**Posibles tratamientos:**")
-                    st.markdown(pat["posibles_tratamientos"], unsafe_allow_html=True)
-                    if pat.get("citas"):
-                        st.markdown("**Citas / Referencias:**")
-                        for cita in pat["citas"]:
-                            st.markdown(f"- [{cita}]({cita})")
-            else:
-                st.warning(f"No se encontró información para: {idx}")
-
 elif menu == "Grupo":
     st.header("👥 Información del grupo")
     st.markdown(
@@ -147,7 +39,7 @@ elif menu == "Grupo":
         """
     )
     st.markdown("Este proyecto es parte de un trabajo académico en la Universidad de los Andes, Bogotá, Colombia")
-elif menu == "Clasificar eegs 2":
+elif menu == "Clasificar EEG":
     #st.markdown("#### Resumen del Modelo")
     #model = load_eeg_classification_model()
     #summary_string = io.StringIO()
@@ -169,51 +61,148 @@ elif menu == "Clasificar eegs 2":
 
     if archivo_parquet is not None:
         st.success("Archivo recibido")
-        st.subheader("Resultados de Clasificación")
-        with st.spinner("Procesando archivo y clasificando EEG..."):
 
-            archivo_parquet.seek(0) 
+        eeg_df = None
+        results = None
+
+        with st.spinner("Procesando archivo, clasificando EEG y cargando datos para visualización..."):
+            archivo_parquet.seek(0)
             results = predict_eeg_from_parquet_file(archivo_parquet)
-            df_results = pd.DataFrame(
-                [results[0]],
-                columns=results[1]
-            )
-            st.table(df_results)
-        # --- Display EEG Image ---
-        st.subheader("Visualización de la Señal EEG")
-        try:
 
-            archivo_parquet.seek(0) 
-            eeg_df = pd.read_parquet(archivo_parquet)
+            try:
+                archivo_parquet.seek(0)
+                eeg_df = pd.read_parquet(archivo_parquet)
+            except Exception as e:
+                st.error(f"Error al leer el archivo Parquet para visualización: {e}")
+                eeg_df = None
 
-            eeg_channel_columns = eeg_df.select_dtypes(include=np.number).columns.tolist()
+        if results and results[0] is not None and results[1] is not None:
+            st.markdown("""
+            <style>
+                /* Estilo para pestañas inactivas */
+                button[data-baseweb="tab"][aria-selected="false"] {
+                    color: lightgray !important;
+                    font-weight: bold !important;
+                }
+                /* Estilo para la pestaña activa */
+                button[data-baseweb="tab"][aria-selected="true"] {
+                    color: white !important;
+                    font-weight: bold !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+
+            tab_resultados, tab_visualizar = st.tabs(["Resultados", "Visualizar EEG"])
+
+            with tab_resultados:
+                st.subheader("Resultados de la Clasificación")
+                probabilities = results[0]
+                class_labels = results[1]
+
+                df_votes = pd.DataFrame({"Votos": probabilities}, index=class_labels)
+                st.bar_chart(df_votes)
+
+                # Top 3
+                top3 = df_votes.sort_values("Votos", ascending=False).head(3)
+                if not top3.empty:
+                    mejor = top3.index[0]
+                    pat_mejor = patologias.get(mejor)
+                    if pat_mejor:
+                        st.markdown(f"# 1. {pat_mejor['nombre_completo']}")
+                        st.write(f"**ID:** {pat_mejor['id']}")
+                        st.write(f"**Probabilidad:** {top3.loc[mejor, 'Votos']:.2f}")
+                        st.markdown("**Descripción:**")
+                        st.markdown(pat_mejor["descripción"], unsafe_allow_html=True)
+                        st.markdown("**Posibles tratamientos:**")
+                        st.markdown(pat_mejor["posibles_tratamientos"], unsafe_allow_html=True)
+                        if pat_mejor.get("citas"):
+                            st.markdown("**Citas / Referencias:**")
+                            for cita in pat_mejor["citas"]:
+                                st.markdown(f"- [{cita}]({cita})")
+                        st.markdown("---")
+
+                    # Acordeones para 2 y 3
+                    for idx in top3.index[1:]:
+                        pat = patologias.get(idx)
+                        if pat:
+                            with st.expander(f"{pat['nombre_completo']} ({idx})"):
+                                st.write(f"**ID:** {pat['id']}")
+                                st.write(f"**Probabilidad:** {top3.loc[idx, 'Votos']:.2f}")
+                                st.markdown("**Descripción:**")
+                                st.markdown(pat["descripción"], unsafe_allow_html=True)
+                                st.markdown("**Posibles tratamientos:**")
+                                st.markdown(pat["posibles_tratamientos"], unsafe_allow_html=True)
+                                if pat.get("citas"):
+                                    st.markdown("**Citas / Referencias:**")
+                                    for cita in pat["citas"]:
+                                        st.markdown(f"- [{cita}]({cita})")
+                        else:
+                            st.warning(f"No se encontró información para: {idx}")
+                else:
+                    st.warning("No se pudieron obtener los resultados de la clasificación para el top 3.")
+
+            with tab_visualizar:
+                st.subheader("Visualización de la Señal EEG")
+                if eeg_df is not None and not eeg_df.empty:
+                    try:
+                        channels_to_plot = eeg_df.select_dtypes(include=np.number).columns.tolist()
+
+                        if not channels_to_plot:
+                            st.warning("No se encontraron columnas numéricas (canales EEG) para graficar.")
+                        else:
+                            plt.style.use('dark_background')
+                            fig_eeg, ax_eeg = plt.subplots(figsize=(15, 100), facecolor='black')
+
+                            time_axis = eeg_df.index
+                            if "Time" in eeg_df.columns:
+                                time_axis = eeg_df["Time"]
+
+                            ptp_s = eeg_df[channels_to_plot].apply(
+                                lambda x: x.max() - x.min() if pd.notna(x.max()) and pd.notna(x.min()) else 0
+                            )
+                            plot_offset = 0
+                            if not ptp_s.empty:
+                                max_ptp = ptp_s.max()
+                                if pd.notna(max_ptp) and max_ptp > 0:
+                                    plot_offset = max_ptp * 1.2
+
+                            if plot_offset == 0 and len(channels_to_plot) > 1 and eeg_df[channels_to_plot].abs().sum().sum() > 0:
+                                plot_offset = 1
+                            if len(channels_to_plot) <= 1:
+                                plot_offset = 0
+
+                            for i, ch_name in enumerate(channels_to_plot):
+                                signal = eeg_df[ch_name].fillna(0)
+                                text_x_position = (
+                                    time_axis.min() - (time_axis.max() - time_axis.min()) * 0.03
+                                    if not time_axis.empty and (time_axis.max() - time_axis.min()) > 0
+                                    else (time_axis.min() - 0.1 if not time_axis.empty else -0.1)
+                                )
+                                ax_eeg.plot(time_axis, signal + i * plot_offset, color='lime', linewidth=0.8)
+                                ax_eeg.text(
+                                    text_x_position,
+                                    i * plot_offset + signal.mean(),
+                                    ch_name,
+                                    va='center',
+                                    ha='right',
+                                    color='white',
+                                    fontsize=8
+                                )
+
+                            if not time_axis.empty:
+                                ax_eeg.set_xlim(time_axis.min(), time_axis.max())
+                            ax_eeg.axis('off')
+                            st.pyplot(fig_eeg)
+                            plt.style.use('default')
+                    except Exception as e:
+                        st.error(f"Error al generar la gráfica del EEG: {e}")
+                        plt.style.use('default')
+                elif eeg_df is None:
+                    st.warning("No se pudo cargar el DataFrame del EEG para la visualización debido a un error previo al leer el archivo.")
+                else:
+                    st.warning("El archivo Parquet está vacío o no contiene datos EEG para graficar.")
+        elif results is None or (results and (results[0] is None or results[1] is None)):
+            st.error("No se pudieron obtener las predicciones del modelo.")
+
             
-            if not eeg_channel_columns:
-                st.warning("No se encontraron columnas numéricas para graficar como canales EEG.")
-            elif len(eeg_df) == 0:
-                st.warning("El archivo Parquet está vacío o no contiene datos para graficar.")
-            else:
-                # 3. Plot the signals
-                fig, axes = plt.subplots(len(eeg_channel_columns), 1, figsize=(12, 2 * len(eeg_channel_columns)), sharex=True)
-                if len(eeg_channel_columns) == 1: 
-                    axes = [axes] 
-
-                for i, channel in enumerate(eeg_channel_columns):
-                    axes[i].plot(eeg_df.index, eeg_df[channel]) 
-                    axes[i].set_ylabel(channel)
-                    axes[i].grid(True)
-                
-                axes[-1].set_xlabel("Muestras (o Tiempo)")
-                fig.suptitle("Señales EEG", fontsize=16)
-                plt.tight_layout(rect=[0, 0, 1, 0.96]) 
-
-                st.pyplot(fig)
-
-        except Exception as e:
-            st.error(f"Error al procesar o graficar el archivo EEG: {e}")
-        
-        
-
-
-
-
+            

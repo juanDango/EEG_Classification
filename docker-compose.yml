@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Monta tu código en /app: cualquier cambio local se reflejará sin rebuild
+    volumes:
+      - ./:/app  
+    # Expone el puerto 8501 para acceder a Streamlit desde el host
+    ports:
+      - "8501:8501"  
+    # Variables de entorno que ya definiste en tu Dockerfile
+    environment:
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0  
+      STREAMLIT_SERVER_PORT: 8501  
+    # Comando para arrancar la app (puedes omitirlo si usas ENTRYPOINT en Dockerfile)
+    command: streamlit run app.py  
+    # Reinicia el contenedor si falla
+    restart: unless-stopped  
